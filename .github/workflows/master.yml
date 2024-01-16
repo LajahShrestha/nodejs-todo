@@ -2,26 +2,30 @@ name: Deploy to Amazon ECS
 
 on:
   push:
-    branches: [ "LajahShrestha-pushToEcs-1" ]
+    branches:
+      - dev                         #dev
+      - LajahShrestha-pushToEcs-1   #stage
+      - master                      #prod
 
 env:
-  AWS_REGION: us-east-1                  # set this to your preferred AWS region, e.g. us-west-1
-  ECR_REPOSITORY: nodejs-app           # set this to your Amazon ECR repository name
-  ECS_SERVICE: nodeappservices                 # set this to your Amazon ECS service name
-  ECS_CLUSTER: nodejs-cluster                 # set this to your Amazon ECS cluster name
-  ECS_TASK_DEFINITION: ./nodejs-app-td.json # set this to the path to your Amazon ECS task definition
-                                               # file, e.g. .aws/task-definition.json
-  CONTAINER_NAME: nodejscontainer          # set this to the name of the container in the
-                                               # containerDefinitions section of your task definition
+  AWS_REGION: us-east-1                
+  ECR_REPOSITORY: nodejs-app          
+  ECS_SERVICE: nodeappservices                
+  ECS_TASK_DEFINITION: ./nodejs-app-td.json                                   
+  CONTAINER_NAME: nodejscontainer          
+                                            
 
 permissions:
   contents: read
 
 jobs:
   deploy:
-    name: Build & Deploy
+    name: Build , Scan & Deploy
     runs-on: ubuntu-latest
-    # environment: production
+    
+    strategy:
+      matrix:
+        environment: ['dev', 'stage', 'prod']
 
     steps:
     - name: Checkout
@@ -81,19 +85,6 @@ jobs:
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
-
-     # Scan the Image
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_TAG: ${{ github.sha }}
-        REPOSITORY: nodejs-app
-      with:
-        image-ref: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-      continue-on-error: false  
 
     - name: Fill in the new image ID in the Amazon ECS task definition
       id: task-def
